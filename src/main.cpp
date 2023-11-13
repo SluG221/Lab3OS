@@ -1,4 +1,4 @@
-#include <Windows.h>
+#include <windows.h>
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -44,5 +44,9 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
+    return 0;
+}
+
+int main() {
     return 0;
 }

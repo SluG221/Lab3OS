@@ -3,4 +3,8 @@ project(lab3)
 
 set(CMAKE_CXX_STANDARD 17)
 
-add_executable(lab3 main.cpp)
+enable_testing()
+
+add_test(NAME MyTests COMMAND MyTests)
+
+add_executable(lab3 src/main.cpp)
