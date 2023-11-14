@@ -5,11 +5,11 @@
 #include <wingdi.h>
 
 int width = 600, height = 600;
-int N;
+int N, gridR = 255, gridG = 0, gridB = 0;
 static COLORREF backgroundColor = RGB(0, 0, 255);
-
-#define WM_DRAW_CIRCLE (WM_USER + 1)
-#define WM_DRAW_X (WM_USER + 2)
+static COLORREF gridColor = RGB(gridR, gridG, gridB);
+static int scrollDelta = 0;
+std::vector<std::vector<int>> matrix;
 
 void DrawGrid(HDC hdc, int n) {
     int cellWidth = width / n;
@@ -54,12 +54,15 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hwnd, &ps);
 
-            HPEN bluePen = CreatePen(PS_SOLID, 1, backgroundColor);
-            HPEN redPen = CreatePen(PS_SOLID, 2, RGB(255, 0, 0));
+            HPEN bg = CreatePen(PS_SOLID, 1, backgroundColor);
+            HPEN grid = CreatePen(PS_SOLID, 2, gridColor);
+            HPEN blackPen = CreatePen(PS_SOLID, 1, RGB(0,0,0));
+            HPEN greenPen = CreatePen(PS_SOLID, 5, RGB(0, 255, 0));
+            HBRUSH yellowBrush = CreateSolidBrush(RGB(255, 255, 0));
 
-            FillRect(hdc, &ps.rcPaint, (HBRUSH) (bluePen));
+            FillRect(hdc, &ps.rcPaint, (HBRUSH) (bg));
 
-            SelectObject(hdc, redPen);
+            SelectObject(hdc, grid);
             char* nValue = getenv("N");
             if (nValue != nullptr) {
                 N = std::stoi(nValue);
@@ -70,10 +73,39 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             else {
                 N = 3;
             }
+
+            if (matrix.empty()) {
+                for (int i = 0; i < N; i++) {
+                    std::vector<int> temp;
+                    for (int j = 0; j < N; j++) {
+                        temp.push_back(0);
+                    }
+                    matrix.push_back(temp);
+                }
+            }
+
             DrawGrid(hdc, N);
 
-            DeleteObject(bluePen);
-            DeleteObject(redPen);
+            SelectObject(hdc, blackPen);
+            for (int i = 0; i < N; i++) {
+                for (int j = 0; j < N; j++) {
+                    if (matrix[i][j] == 1) {
+                        SelectObject(hdc, yellowBrush);
+                        DrawCircle(hdc, i + 1, j + 1);
+                        SelectObject(hdc, blackPen);
+                    }
+                    if (matrix[i][j] == 2) {
+                        SelectObject(hdc, greenPen);
+                        DrawX(hdc, i + 1, j + 1);
+                        SelectObject(hdc, blackPen);
+                    }
+                }
+            }
+
+            DeleteObject(bg);
+            DeleteObject(grid);
+            DeleteObject(greenPen);
+            DeleteObject(yellowBrush);
 
             EndPaint(hwnd, &ps);
             ReleaseDC(hwnd, hdc);
@@ -95,8 +127,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     col = i;
                 }
             }
-            PostMessage(hwnd, WM_DRAW_CIRCLE, row, col);
-            InvalidateRect(hwnd, nullptr, TRUE); //update window
+
+            if (matrix[row-1][col-1] == 0) {
+                matrix[row-1][col-1] = 1;
+                InvalidateRect(hwnd, nullptr, TRUE);
+            }
             break;
         }
         case WM_RBUTTONDOWN: {
@@ -115,48 +150,45 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     col = i;
                 }
             }
-            PostMessage(hwnd, WM_DRAW_X, row, col);
-            InvalidateRect(hwnd, nullptr, TRUE); //update window
+
+            if (matrix[row-1][col-1] == 0) {
+                matrix[row-1][col-1] = 2;
+                InvalidateRect(hwnd, nullptr, TRUE);
+            }
             break;
         }
-        case WM_DRAW_CIRCLE: {
-
-            int row = (int)wParam;
-            int col = (int)lParam;
-
-            std::cout << row << " " << col << " left" << std::endl;
-
-            PAINTSTRUCT ps;
-            HDC hdc = BeginPaint(hwnd, &ps);
-            HBRUSH yellowBrush = CreateSolidBrush(RGB(255, 255, 0));
-
-            SelectObject(hdc, yellowBrush);
-            DrawCircle(hdc, row, col);
-
-            DeleteObject(yellowBrush);
-
-            EndPaint(hwnd, &ps);
-            ReleaseDC(hwnd, hdc);
-            break;
-        }
-        case WM_DRAW_X: {
-
-            int row = (int)wParam;
-            int col = (int)lParam;
-
-            std::cout << row << " " << col << " right" << std::endl;
-
-            PAINTSTRUCT ps;
-            HDC hdc = BeginPaint(hwnd, &ps);
-            HPEN greenPen = CreatePen(PS_SOLID, 5, RGB(0, 255, 0));
-
-            SelectObject(hdc, greenPen);
-            DrawX(hdc, row, col);
-
-            DeleteObject(greenPen);
-
-            EndPaint(hwnd, &ps);
-            ReleaseDC(hwnd, hdc);
+        case WM_MOUSEWHEEL: {
+            scrollDelta = GET_WHEEL_DELTA_WPARAM(wParam);
+            if (scrollDelta == WHEEL_DELTA) {
+                if (gridR == 255 && gridG == 0)
+                    gridB += 15;
+                if (gridG == 0 && gridB == 255)
+                    gridR -= 15;
+                if (gridR == 0 && gridB == 255)
+                    gridG += 15;
+                if (gridG == 255 && gridR == 0)
+                    gridB -= 15;
+                if (gridG == 255 && gridB == 0)
+                    gridR += 15;
+                if (gridR == 255 && gridB == 0)
+                    gridG -= 15;
+            }
+            else {
+                if (gridR == 255 && gridG == 0)
+                    gridB -= 15;
+                if (gridG == 0 && gridB == 255)
+                    gridR += 15;
+                if (gridR == 0 && gridB == 255)
+                    gridG -= 15;
+                if (gridG == 255 && gridR == 0)
+                    gridB += 15;
+                if (gridG == 255 && gridB == 0)
+                    gridR -= 15;
+                if (gridR == 255 && gridB == 0)
+                    gridG += 15;
+            }
+            gridColor = RGB(gridR, gridG, gridB);
+            InvalidateRect(hwnd, nullptr, TRUE);
             break;
         }
         case WM_KEYDOWN: {
@@ -164,10 +196,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 PostQuitMessage(0);
                 return 0;
             }
-            if ((GetKeyState(VK_CONTROL) & 0x8000) && wParam == 'C') {
+            else if ((GetKeyState(VK_CONTROL) & 0x8000) && wParam == 'C') {
                 system("start C:/Windows/System32/notepad.exe");
             }
-            if (wParam == VK_RETURN) {
+            else if (wParam == VK_RETURN) {
                 backgroundColor = RGB(rand() % 256, rand() % 256, rand() % 256);
                 InvalidateRect(hwnd, nullptr, TRUE);
             }
