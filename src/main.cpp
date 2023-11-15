@@ -2,7 +2,6 @@
 #include <Windowsx.h>
 #include <iostream>
 #include <vector>
-#include <wingdi.h>
 
 int width = 600, height = 600;
 int N, gridR = 255, gridG = 0, gridB = 0;
@@ -10,6 +9,17 @@ static COLORREF backgroundColor = RGB(0, 0, 255);
 static COLORREF gridColor = RGB(gridR, gridG, gridB);
 static int scrollDelta = 0;
 std::vector<std::vector<int>> matrix;
+
+void ClearMatrix() {
+    matrix.clear();
+    for (int i = 0; i < N; i++) {
+        std::vector<int> temp;
+        for (int j = 0; j < N; j++) {
+            temp.push_back(0);
+        }
+        matrix.push_back(temp);
+    }
+}
 
 void DrawGrid(HDC hdc, int n) {
     int cellWidth = width / n;
@@ -75,13 +85,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             }
 
             if (matrix.empty()) {
-                for (int i = 0; i < N; i++) {
-                    std::vector<int> temp;
-                    for (int j = 0; j < N; j++) {
-                        temp.push_back(0);
-                    }
-                    matrix.push_back(temp);
-                }
+                ClearMatrix();
             }
 
             DrawGrid(hdc, N);
@@ -201,6 +205,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             }
             else if (wParam == VK_RETURN) {
                 backgroundColor = RGB(rand() % 256, rand() % 256, rand() % 256);
+                InvalidateRect(hwnd, nullptr, TRUE);
+            }
+            else if ((GetKeyState(VK_CONTROL) & 0x8000) && wParam == 'R') {
+                ClearMatrix();
                 InvalidateRect(hwnd, nullptr, TRUE);
             }
             break;
