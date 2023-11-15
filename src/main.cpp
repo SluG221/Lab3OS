@@ -75,6 +75,7 @@ WindowConfig LoadFromStream() {
         file.close();
     }
     else {
+        std::cout << "[INFO] - Unable to load from fstream. Using DefaultConfig instead.\n";
         return DefaultConfig;
     }
     return cfg;
@@ -123,6 +124,7 @@ WindowConfig LoadFromFile() {
         fclose(file);
     }
     else {
+        std::cout << "[INFO] - Unable to load from file. Using DefaultConfig instead.\n";
         return DefaultConfig;
     }
     return cfg;
@@ -157,6 +159,7 @@ WindowConfig LoadFromWinAPI() {
         CloseHandle(hFile);
     }
     else {
+        std::cout << "[INFO] - Unable to load from WinAPI. Using DefaultConfig instead.\n";
         return DefaultConfig;
     }
     return cfg;
@@ -195,11 +198,13 @@ WindowConfig LoadFromFileMapping() {
             UnmapViewOfFile(mappedData);
         }
         else {
+            std::cout << "[INFO] - Unable to load from filemapping. Using DefaultConfig instead.\n";
             return DefaultConfig;
         }
         CloseHandle(hFileMapping);
     }
     else {
+        std::cout << "[INFO] - Unable to load from filemapping. Using DefaultConfig instead.\n";
         return DefaultConfig;
     }
     return cfg;
@@ -268,16 +273,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             FillRect(hdc, &ps.rcPaint, (HBRUSH) (bg));
 
             SelectObject(hdc, grid);
-            char* nValue = getenv("N");
-            if (nValue != nullptr) {
-                N = std::stoi(nValue);
-                if (N < 1) {
-                    N = config.N;
-                }
-            }
-            else {
-                N = config.N;
-            }
 
             if (matrix.empty()) {
                 ClearMatrix();
@@ -417,29 +412,41 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
 
     std::string CfgSave;
-    char* nValue = getenv("CfgSave");
-    if (nValue != nullptr) {
-        CfgSave = nValue;
+    char* CfgValue = getenv("CfgSave");
+    if (CfgValue != nullptr) {
+        CfgSave = CfgValue;
     }
 
     if (CfgSave == "fstream") {
-        std::cout << "[INFO] - Config loaded from fstream" << std::endl;
+        std::cout << "[INFO] - Config loaded from fstream.\n" << std::endl;
         config = LoadFromStream();
     }
     else if (CfgSave == "winapi") {
-        std::cout << "[INFO] - Config loaded from WinAPI" << std::endl;
+        std::cout << "[INFO] - Config loaded from WinAPI.\n" << std::endl;
         config = LoadFromWinAPI();
     }
     else if (CfgSave == "filemapping") {
-        std::cout << "[INFO] - Config loaded from filemapping" << std::endl;
+        std::cout << "[INFO] - Config loaded from filemapping.\n" << std::endl;
         config = LoadFromFileMapping();
     }
     else {
-        std::cout << "[INFO] - Config loaded from file" << std::endl;
+        std::cout << "[INFO] - Config loaded from file.\n" << std::endl;
         config = LoadFromFile();
     }
 
     LoadFromConfig(config);
+
+    char* nValue = getenv("N");
+    if (nValue != nullptr) {
+        N = std::stoi(nValue);
+        if (N < 1) {
+            N = config.N;
+        }
+    }
+    else {
+        N = config.N;
+    }
+
     srand(time(0));
     const char CLASS_NAME[] = "MyWindowClass";
 
