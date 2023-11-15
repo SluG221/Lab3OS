@@ -2,14 +2,219 @@
 #include <Windowsx.h>
 #include <iostream>
 #include <vector>
-#include <wingdi.h>
+#include <fstream>
 
-int width = 600, height = 600;
-int N, gridR = 255, gridG = 0, gridB = 0;
-static COLORREF backgroundColor = RGB(0, 0, 255);
-static COLORREF gridColor = RGB(gridR, gridG, gridB);
+struct WindowConfig {
+    int width;
+    int height;
+    int N;
+    int bgR;
+    int bgG;
+    int bgB;
+    int gridR;
+    int gridG;
+    int gridB;
+};
+
+WindowConfig DefaultConfig{
+    600,
+    600,
+    3,
+    0,
+    0,
+    255,
+    255,
+    0,
+    0
+};
+
+WindowConfig config{};
+
+int width, height;
+int N, gridR, gridG, gridB;
+static COLORREF backgroundColor;
+static COLORREF gridColor;
 static int scrollDelta = 0;
 std::vector<std::vector<int>> matrix;
+
+void LoadFromConfig(WindowConfig cfg) {
+    width = cfg.width;
+    height = cfg.height;
+    N = cfg.N;
+    backgroundColor = RGB(cfg.bgR, cfg.bgG, cfg.bgB);
+    gridR = cfg.gridR;
+    gridG = cfg.gridG;
+    gridB = cfg.gridB;
+    gridColor = RGB(gridR, gridG, gridB);
+}
+
+void SaveToStream(WindowConfig cfg) {
+    cfg = {
+            width,
+            height,
+            N,
+            GetRValue(backgroundColor),
+            GetGValue(backgroundColor),
+            GetBValue(backgroundColor),
+            gridR,
+            gridG,
+            gridB
+    };
+    std::ofstream file("WindowConfigStream.txt");
+    if (file.is_open()) {
+        file << cfg.width << "\n" << cfg.height << "\n" << cfg.N << "\n" << cfg.bgR << "\n" << cfg.bgG << "\n" << cfg.bgB << "\n" << cfg.gridR << "\n" << cfg.gridG << "\n" << cfg.gridB;
+        file.close();
+    }
+}
+
+WindowConfig LoadFromStream() {
+    WindowConfig cfg{};
+    std::ifstream file("WindowConfigStream.txt");
+    if (file.is_open()) {
+        file >> cfg.width >> cfg.height >> cfg.N >> cfg.bgR >> cfg.bgG >> cfg.bgB >> cfg.gridR >> cfg.gridG >> cfg.gridB;
+        file.close();
+    }
+    else {
+        return DefaultConfig;
+    }
+    return cfg;
+}
+
+void SaveToFile(WindowConfig cfg) {
+    cfg = {
+            width,
+            height,
+            N,
+            GetRValue(backgroundColor),
+            GetGValue(backgroundColor),
+            GetBValue(backgroundColor),
+            gridR,
+            gridG,
+            gridB
+    };
+    FILE *file;
+    file = std::fopen("WindowConfigFile.txt", "w");
+    fprintf(file, "%d\n", cfg.width);
+    fprintf(file, "%d\n", cfg.height);
+    fprintf(file, "%d\n", cfg.N);
+    fprintf(file, "%d\n", cfg.bgR);
+    fprintf(file, "%d\n", cfg.bgG);
+    fprintf(file, "%d\n", cfg.bgB);
+    fprintf(file, "%d\n", cfg.gridR);
+    fprintf(file, "%d\n", cfg.gridG);
+    fprintf(file, "%d\n", cfg.gridB);
+    fclose(file);
+}
+
+WindowConfig LoadFromFile() {
+    WindowConfig cfg{};
+    FILE *file;
+    file = std::fopen("WindowConfigFile.txt", "r");
+    if (file != nullptr) {
+        fscanf(file, "%d", &cfg.width);
+        fscanf(file, "%d", &cfg.height);
+        fscanf(file, "%d", &cfg.N);
+        fscanf(file, "%d", &cfg.bgR);
+        fscanf(file, "%d", &cfg.bgG);
+        fscanf(file, "%d", &cfg.bgB);
+        fscanf(file, "%d", &cfg.gridR);
+        fscanf(file, "%d", &cfg.gridG);
+        fscanf(file, "%d", &cfg.gridB);
+        fclose(file);
+    }
+    else {
+        return DefaultConfig;
+    }
+    return cfg;
+}
+
+void SaveToWinAPI(WindowConfig cfg) {
+    cfg = {
+            width,
+            height,
+            N,
+            GetRValue(backgroundColor),
+            GetGValue(backgroundColor),
+            GetBValue(backgroundColor),
+            gridR,
+            gridG,
+            gridB
+    };
+    HANDLE hFile = CreateFile("WindowConfigWinAPI.txt", GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (hFile != INVALID_HANDLE_VALUE) {
+        DWORD bytesWritten;
+        WriteFile(hFile, &cfg, sizeof(WindowConfig), &bytesWritten, nullptr);
+        CloseHandle(hFile);
+    }
+}
+
+WindowConfig LoadFromWinAPI() {
+    WindowConfig cfg {};
+    HANDLE hFile = CreateFile("WindowConfigWinAPI.txt", GENERIC_READ, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (hFile != INVALID_HANDLE_VALUE) {
+        DWORD bytesRead;
+        ReadFile(hFile, &cfg, sizeof(WindowConfig), &bytesRead, nullptr);
+        CloseHandle(hFile);
+    }
+    else {
+        return DefaultConfig;
+    }
+    return cfg;
+}
+
+void SaveToFileMapping(WindowConfig cfg) {
+    cfg = {
+            width,
+            height,
+            N,
+            GetRValue(backgroundColor),
+            GetGValue(backgroundColor),
+            GetBValue(backgroundColor),
+            gridR,
+            gridG,
+            gridB
+    };
+    HANDLE hFileMapping = CreateFileMapping(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, sizeof(WindowConfig), "WindowConfigFileMapping");
+    if (hFileMapping != nullptr) {
+        WindowConfig* mappedData = static_cast<WindowConfig*>(MapViewOfFile(hFileMapping, FILE_MAP_WRITE, 0, 0, sizeof(WindowConfig)));
+        if (mappedData != nullptr) {
+            *mappedData = cfg;
+            UnmapViewOfFile(mappedData);
+        }
+        CloseHandle(hFileMapping);
+    }
+}
+
+WindowConfig LoadFromFileMapping() {
+    WindowConfig cfg = {0, 0,0,0,0,0,0,0,0};
+    HANDLE hFileMapping = OpenFileMapping(FILE_MAP_READ, FALSE, "WindowConfigFileMapping");
+    if (hFileMapping != nullptr) {
+        WindowConfig* mappedData = static_cast<WindowConfig*>(MapViewOfFile(hFileMapping, FILE_MAP_READ, 0, 0, sizeof(WindowConfig)));
+        if (mappedData != nullptr) {
+            cfg = *mappedData;
+            UnmapViewOfFile(mappedData);
+        }
+        else {
+            return DefaultConfig;
+        }
+        CloseHandle(hFileMapping);
+    }
+    else {
+        return DefaultConfig;
+    }
+    return cfg;
+}
+
+void ClearMatrix() {
+    matrix.clear();
+    for (int i = 0; i < N; i++) {
+        std::vector<int> temp;
+        for (int j = 0; j < N; j++) {
+            temp.push_back(0);
+        }
+        matrix.push_back(temp);
+    }
+}
 
 void DrawGrid(HDC hdc, int n) {
     int cellWidth = width / n;
@@ -67,21 +272,15 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             if (nValue != nullptr) {
                 N = std::stoi(nValue);
                 if (N < 1) {
-                    N = 3;
+                    N = config.N;
                 }
             }
             else {
-                N = 3;
+                N = config.N;
             }
 
             if (matrix.empty()) {
-                for (int i = 0; i < N; i++) {
-                    std::vector<int> temp;
-                    for (int j = 0; j < N; j++) {
-                        temp.push_back(0);
-                    }
-                    matrix.push_back(temp);
-                }
+                ClearMatrix();
             }
 
             DrawGrid(hdc, N);
@@ -174,7 +373,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     gridG -= 15;
             }
             else {
-                if (gridR == 255 && gridG == 0)
+                if (gridR == 255 && gridG == 0 && gridB != 0)
                     gridB -= 15;
                 if (gridG == 0 && gridB == 255)
                     gridR += 15;
@@ -203,6 +402,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 backgroundColor = RGB(rand() % 256, rand() % 256, rand() % 256);
                 InvalidateRect(hwnd, nullptr, TRUE);
             }
+            else if ((GetKeyState(VK_CONTROL) & 0x8000) && wParam == 'R') {
+                ClearMatrix();
+                InvalidateRect(hwnd, nullptr, TRUE);
+            }
             break;
         }
         default:
@@ -212,6 +415,31 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 }
 
 int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+
+    std::string CfgSave;
+    char* nValue = getenv("CfgSave");
+    if (nValue != nullptr) {
+        CfgSave = nValue;
+    }
+
+    if (CfgSave == "fstream") {
+        std::cout << "[INFO] - Config loaded from fstream" << std::endl;
+        config = LoadFromStream();
+    }
+    else if (CfgSave == "winapi") {
+        std::cout << "[INFO] - Config loaded from WinAPI" << std::endl;
+        config = LoadFromWinAPI();
+    }
+    else if (CfgSave == "filemapping") {
+        std::cout << "[INFO] - Config loaded from filemapping" << std::endl;
+        config = LoadFromFileMapping();
+    }
+    else {
+        std::cout << "[INFO] - Config loaded from file" << std::endl;
+        config = LoadFromFile();
+    }
+
+    LoadFromConfig(config);
     srand(time(0));
     const char CLASS_NAME[] = "MyWindowClass";
 
@@ -245,5 +473,19 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
+
+    if (CfgSave == "fstream") {
+        SaveToStream(config);
+    }
+    else if (CfgSave == "winapi") {
+        SaveToWinAPI(config);
+    }
+    else if (CfgSave == "filemapping") {
+        SaveToFileMapping(config);
+    }
+    else {
+        SaveToFile(config);
+    }
+
     return 0;
 }
