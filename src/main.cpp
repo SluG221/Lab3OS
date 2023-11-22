@@ -244,6 +244,8 @@ void SaveMatrix() {
                                                                                   0,
                                                                                   sizeof(WindowConfig)));
     *mappedData = matrix;
+    UnmapViewOfFile(mappedData);
+    CloseHandle(hMapFile);
 }
 
 void LoadMatrix() {
@@ -255,6 +257,8 @@ void LoadMatrix() {
                                                                                   0,
                                                                                   sizeof(WindowConfig)));
     matrix = *mappedData;
+    UnmapViewOfFile(mappedData);
+    CloseHandle(hMapFile);
 }
 
 void UpdateAll() {
