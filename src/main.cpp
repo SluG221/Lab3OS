@@ -38,7 +38,6 @@ static COLORREF backgroundColor;
 static COLORREF gridColor;
 static int scrollDelta = 0;
 std::vector<std::vector<int>> matrix;
-std::vector<HWND> hwnds(numWindows);
 
 void LoadFromConfig(WindowConfig cfg) {
     width = cfg.width;
@@ -261,9 +260,8 @@ void LoadMatrix() {
     CloseHandle(hMapFile);
 }
 
-void UpdateAll() {
-    for(int i = 0; i < numWindows; i++)
-        PostMessage(hwnds[i], UPDATE, 0, 0);
+void UpdateAll(HWND hwnd) {
+    PostMessage(hwnd, UPDATE, 0, 0);
     SaveMatrix();
 }
 
@@ -380,7 +378,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
             if (matrix[row-1][col-1] == 0) {
                 matrix[row-1][col-1] = 1;
-                UpdateAll();
+                UpdateAll(hwnd);
                 InvalidateRect(hwnd, nullptr, TRUE);
             }
             break;
@@ -404,7 +402,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
             if (matrix[row-1][col-1] == 0) {
                 matrix[row-1][col-1] = 2;
-                UpdateAll();
+                UpdateAll(hwnd);
                 InvalidateRect(hwnd, nullptr, TRUE);
             }
             break;
@@ -445,7 +443,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     gridG += 15;
             }
             gridColor = RGB(gridR, gridG, gridB);
-            UpdateAll();
+            UpdateAll(hwnd);
             InvalidateRect(hwnd, nullptr, TRUE);
             break;
         }
@@ -458,12 +456,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 system("start C:/Windows/System32/notepad.exe");
             }
             else if (wParam == VK_RETURN) {
-                UpdateAll();
+                UpdateAll(hwnd);
                 backgroundColor = RGB(rand() % 256, rand() % 256, rand() % 256);
                 InvalidateRect(hwnd, nullptr, TRUE);
             }
             else if ((GetKeyState(VK_CONTROL) & 0x8000) && wParam == 'R') {
-                UpdateAll();
+                UpdateAll(hwnd);
                 ClearMatrix();
                 InvalidateRect(hwnd, nullptr, TRUE);
             }
@@ -478,7 +476,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
 
     std::string CfgSave;
-    char* CfgValue = getenv("CfgSave");
+    char *CfgValue = getenv("CfgSave");
     if (CfgValue != nullptr) {
         CfgSave = CfgValue;
     }
@@ -486,30 +484,26 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
     if (CfgSave == "fstream") {
         std::cout << "[INFO] - Config loaded from fstream.\n" << std::endl;
         config = LoadFromStream();
-    }
-    else if (CfgSave == "winapi") {
+    } else if (CfgSave == "winapi") {
         std::cout << "[INFO] - Config loaded from WinAPI.\n" << std::endl;
         config = LoadFromWinAPI();
-    }
-    else if (CfgSave == "filemapping") {
+    } else if (CfgSave == "filemapping") {
         std::cout << "[INFO] - Config loaded from filemapping.\n" << std::endl;
         config = LoadFromFileMapping();
-    }
-    else {
+    } else {
         std::cout << "[INFO] - Config loaded from file.\n" << std::endl;
         config = LoadFromFile();
     }
 
     LoadFromConfig(config);
 
-    char* nValue = getenv("N");
+    char *nValue = getenv("N");
     if (nValue != nullptr) {
         N = std::stoi(nValue);
         if (N < 1) {
             N = config.N;
         }
-    }
-    else {
+    } else {
         N = config.N;
     }
 
@@ -523,28 +517,28 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
     wc.lpszClassName = CLASS_NAME;
     RegisterClass(&wc);
 
-    for (int i = 0; i < numWindows; ++i) {
+    HWND hwnd;
 
-        hwnds[i] = CreateWindowEx(
-                0,                      // Optional window styles
-                CLASS_NAME,             // Window class
-                "WinAPI App",           // Window text
-                WS_OVERLAPPEDWINDOW,    // Window style
-                CW_USEDEFAULT, CW_USEDEFAULT,   //Position
-                width + 15, height + 39,   // Size
-                nullptr,                   // Parent window
-                nullptr,                   // Menu
-                hInstance,              // Instance handle
-                nullptr                    // Additional application data
-        );
+    hwnd = CreateWindowEx(
+            0,                      // Optional window styles
+            CLASS_NAME,             // Window class
+            "WinAPI App",           // Window text
+            WS_OVERLAPPEDWINDOW,    // Window style
+            CW_USEDEFAULT, CW_USEDEFAULT,   //Position
+            width + 15, height + 39,   // Size
+            nullptr,                   // Parent window
+            nullptr,                   // Menu
+            hInstance,              // Instance handle
+            nullptr                    // Additional application data
+    );
 
-        if (hwnds[i] == nullptr) {
-            return 0;
-        }
-
-        ShowWindow(hwnds[i], SW_SHOWNORMAL);
-        UpdateWindow(hwnds[i]);
+    if (hwnd == nullptr) {
+        return 0;
     }
+
+    ShowWindow(hwnd, SW_SHOWNORMAL);
+    UpdateWindow(hwnd);
+
     MSG msg = {};
     while (GetMessage(&msg, nullptr, 0, 0)) {
         TranslateMessage(&msg);
