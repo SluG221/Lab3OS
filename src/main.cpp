@@ -301,7 +301,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
         case WM_DESTROY:
             PostQuitMessage(0);
-            return 0;
+            break;
 
         case WM_SIZE:
             RECT clientRect;
@@ -310,7 +310,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             height = clientRect.bottom - clientRect.top;
             InvalidateRect(hwnd, nullptr, TRUE);
             UpdateWindow(hwnd);
-            return 0;
+            break;
         case WM_PAINT:
         {
             PAINTSTRUCT ps;
@@ -467,6 +467,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             }
             break;
         }
+        case WM_CLOSE:
+            DestroyWindow(hwnd);
+            break;
         default:
             return DefWindowProc(hwnd, uMsg, wParam, lParam);
     }
