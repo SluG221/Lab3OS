@@ -65,7 +65,7 @@ build CMakeFiles/lab3.dir/src/main.cpp.obj: CXX_COMPILER__lab3_unscanned_Debug C
 
 build lab3.exe: CXX_EXECUTABLE_LINKER__lab3_Debug CMakeFiles/lab3.dir/src/main.cpp.obj
   FLAGS = -g
-  LINK_FLAGS = -static
+  LINK_FLAGS = -static  -mwindows
   LINK_LIBRARIES = -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32
   OBJECT_DIR = CMakeFiles\lab3.dir
   POST_BUILD = cd .

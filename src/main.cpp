@@ -30,7 +30,7 @@ WindowConfig DefaultConfig{
 
 WindowConfig config{};
 
-const UINT UPDATE = (WM_USER + 1);
+UINT UPDATE = RegisterWindowMessage("UPDATE");;
 int width, height;
 int N, gridR, gridG, gridB;
 static COLORREF backgroundColor;
@@ -38,6 +38,7 @@ static COLORREF gridColor;
 static int scrollDelta = 0;
 std::vector<std::vector<int>> matrix;
 HANDLE hMappingFile;
+int* pData;
 
 void LoadFromConfig(WindowConfig cfg) {
     width = cfg.width;
@@ -212,7 +213,7 @@ WindowConfig LoadFromFileMapping() {
     return cfg;
 }
 
-void ClearMatrix(HANDLE hMapFile) {
+void ClearMatrix() {
     matrix.clear();
     for (int i = 0; i < N; i++) {
         std::vector<int> temp;
@@ -221,43 +222,46 @@ void ClearMatrix(HANDLE hMapFile) {
         }
         matrix.push_back(temp);
     }
-    hMapFile = CreateFileMapping(
-            INVALID_HANDLE_VALUE,
-            nullptr,
-            PAGE_READWRITE,
-            0,
-            sizeof(std::vector<int>) * size(matrix),
-            "SharedMemory");
-    auto* mappedData = reinterpret_cast<std::vector<std::vector<int>> *>(reinterpret_cast<int *>(MapViewOfFile(
-            hMapFile, FILE_MAP_WRITE, 0, 0, sizeof(std::vector<int>) * size(matrix))));
-    *mappedData = matrix;
-    UnmapViewOfFile(mappedData);
 }
 
-void SaveMatrix(HANDLE hMapFile) {
-    hMapFile = OpenFileMapping(FILE_MAP_WRITE, FALSE, "SharedMemory");
-    auto* mappedData = static_cast<std::vector<std::vector<int>> *>(MapViewOfFile(hMapFile,
-                                                                                  FILE_MAP_WRITE,
-                                                                                  0,
-                                                                                  0,
-                                                                                  sizeof(std::vector<int>) * size(matrix)));
-    *mappedData = matrix;
-    UnmapViewOfFile(mappedData);
+void SaveMatrix() {
+    hMappingFile = OpenFileMapping(FILE_MAP_WRITE, FALSE, "SharedMemory");
+    pData = static_cast<int *>(MapViewOfFile(hMappingFile, FILE_MAP_WRITE, 0, 0,
+                                             sizeof(int)*N*N));
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            pData[i * N + j] = matrix[i][j];
+        }
+    }
 }
 
-void LoadMatrix(HANDLE hMapFile) {
-    hMapFile = OpenFileMapping(FILE_MAP_READ, FALSE, "SharedMemory");
-    auto* mappedData = static_cast<std::vector<std::vector<int>> *>(MapViewOfFile(hMapFile,
-                                                                                  FILE_MAP_READ,
-                                                                                  0,
-                                                                                  0,
-                                                                                  sizeof(std::vector<int>) * size(matrix)));
-    matrix = *mappedData;
+void LoadMatrix() {
+    hMappingFile = OpenFileMapping(FILE_MAP_READ, FALSE, "SharedMemory");
+    if (hMappingFile == nullptr) {
+        hMappingFile = CreateFileMapping(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, sizeof(int)*N*N, "SharedMemory");
+        pData = static_cast<int *>(MapViewOfFile(hMappingFile, FILE_MAP_WRITE, 0, 0,
+                                                 sizeof(int)*N*N));
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < N; j++) {
+                pData[i * N + j] = matrix[i][j];
+            }
+        }
+    }
+    else {
+        pData = static_cast<int *>(MapViewOfFile(hMappingFile, FILE_MAP_READ, 0, 0,
+                                                 sizeof(int)*N*N));
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < N; j++) {
+                matrix[i][j] = pData[i * N + j];
+                std::cout << pData[i * N + j] << " ";
+            }
+        }
+    }
 }
 
-void UpdateAll(HWND hwnd) {
-    PostMessage(hwnd, UPDATE, 0, 0);
-    SaveMatrix(hMappingFile);
+void UpdateAll() {
+    SaveMatrix();
+    PostMessage(HWND_BROADCAST, UPDATE, 0, 0);
 }
 
 void DrawGrid(HDC hdc, int n) {
@@ -292,6 +296,12 @@ void DrawX(HDC hdc, int row, int col) {
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
+    if (uMsg == UPDATE) {
+        std::cout << "poluchil\n";
+        LoadMatrix();
+        InvalidateRect(hwnd, nullptr, TRUE);
+        UpdateWindow(hwnd);
+    }
     switch (uMsg)
     {
         case WM_DESTROY:
@@ -320,12 +330,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             FillRect(hdc, &ps.rcPaint, (HBRUSH) (bg));
 
             SelectObject(hdc, grid);
-
-            if (matrix.empty()) {
-                ClearMatrix(hMappingFile);
-            }
-
-            LoadMatrix(hMappingFile);
 
             DrawGrid(hdc, N);
 
@@ -373,7 +377,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
             if (matrix[row-1][col-1] == 0) {
                 matrix[row-1][col-1] = 1;
-                UpdateAll(hwnd);
+                UpdateAll();
                 InvalidateRect(hwnd, nullptr, TRUE);
             }
             break;
@@ -397,14 +401,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
             if (matrix[row-1][col-1] == 0) {
                 matrix[row-1][col-1] = 2;
-                UpdateAll(hwnd);
+                UpdateAll();
                 InvalidateRect(hwnd, nullptr, TRUE);
             }
-            break;
-        }
-        case UPDATE: {
-            InvalidateRect(hwnd, nullptr, TRUE);
-            UpdateWindow(hwnd);
             break;
         }
         case WM_MOUSEWHEEL: {
@@ -438,7 +437,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     gridG += 15;
             }
             gridColor = RGB(gridR, gridG, gridB);
-            UpdateAll(hwnd);
             InvalidateRect(hwnd, nullptr, TRUE);
             break;
         }
@@ -451,13 +449,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 system("start C:/Windows/System32/notepad.exe");
             }
             else if (wParam == VK_RETURN) {
-                UpdateAll(hwnd);
                 backgroundColor = RGB(rand() % 256, rand() % 256, rand() % 256);
                 InvalidateRect(hwnd, nullptr, TRUE);
             }
             else if ((GetKeyState(VK_CONTROL) & 0x8000) && wParam == 'R') {
-                UpdateAll(hwnd);
-                ClearMatrix(hMappingFile);
+                ClearMatrix();
+                UpdateAll();
                 InvalidateRect(hwnd, nullptr, TRUE);
             }
             break;
@@ -471,43 +468,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     return 0;
 }
 
-HWND CreateMainWindow(HINSTANCE hInstance) {
-    const char CLASS_NAME[] = "MainWinClass";
-
-    WNDCLASS wc = {};
-    wc.lpfnWndProc = WindowProc;
-    wc.hInstance = hInstance;
-    wc.lpszClassName = CLASS_NAME;
-    RegisterClass(&wc);
-
-    HWND hwndMain = CreateWindowEx(
-            0,                      // Optional window styles
-            CLASS_NAME,             // Window class
-            "WinAPI App",           // Window text
-            WS_OVERLAPPEDWINDOW,    // Window style
-            CW_USEDEFAULT, CW_USEDEFAULT,   //Position
-            width + 15, height + 39,   // Size
-            nullptr,                   // Parent window
-            nullptr,                   // Menu
-            hInstance,              // Instance handle
-            nullptr                    // Additional application data
-    );
-
-    if (hwndMain == nullptr) {
-        MessageBox(nullptr, "Window creation failed", "Error", MB_ICONERROR);
-        return nullptr;
-    }
-
-    ShowWindow(hwndMain, SW_SHOWNORMAL);
-    UpdateWindow(hwndMain);
-
-    return hwndMain;
-}
-
 int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
 
+    RegisterWindowMessage("UPDATE");
     std::string CfgSave;
-    char *CfgValue = getenv("CfgSave");
+    char* CfgValue = getenv("CfgSave");
     if (CfgValue != nullptr) {
         CfgSave = CfgValue;
     }
@@ -515,81 +480,63 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
     if (CfgSave == "fstream") {
         std::cout << "[INFO] - Config loaded from fstream.\n" << std::endl;
         config = LoadFromStream();
-    } else if (CfgSave == "winapi") {
+    }
+    else if (CfgSave == "winapi") {
         std::cout << "[INFO] - Config loaded from WinAPI.\n" << std::endl;
         config = LoadFromWinAPI();
-    } else if (CfgSave == "filemapping") {
+    }
+    else if (CfgSave == "filemapping") {
         std::cout << "[INFO] - Config loaded from filemapping.\n" << std::endl;
         config = LoadFromFileMapping();
-    } else {
+    }
+    else {
         std::cout << "[INFO] - Config loaded from file.\n" << std::endl;
         config = LoadFromFile();
     }
 
     LoadFromConfig(config);
 
-    char *nValue = getenv("N");
+    char* nValue = getenv("N");
     if (nValue != nullptr) {
         N = std::stoi(nValue);
         if (N < 1) {
             N = config.N;
         }
-    } else {
+    }
+    else {
         N = config.N;
     }
 
     srand(time(0));
+    ClearMatrix();
+    LoadMatrix();
+    const char CLASS_NAME[] = "MyWindowClass";
 
-    if (GetLastError() == ERROR_ALREADY_EXISTS) {
-        HWND hwndMain = FindWindow("MainWinClass", "WinAPI App");
-        if (hwndMain != nullptr) {
-
-            WNDCLASS wc = {};
-            wc.lpfnWndProc = WindowProc;
-            wc.hInstance = hInstance;
-            wc.lpszClassName = "ChildWinClass";
-            RegisterClass(&wc);
-
-            HWND hwndChild = CreateWindowEx(
-                    0,                      // Optional window styles
-                    "ChildWinClass",             // Window class
-                    "WinAPI App",           // Window text
-                    WS_OVERLAPPEDWINDOW,    // Window style
-                    CW_USEDEFAULT, CW_USEDEFAULT,   //Position
-                    width + 15, height + 39,   // Size
-                    hwndMain,                   // Parent window
-                    nullptr,                   // Menu
-                    hInstance,              // Instance handle
-                    nullptr                    // Additional application data
-            );
-
-            if (hwndChild == nullptr) {
-                MessageBox(nullptr, "Child window creation failed", "Error", MB_ICONERROR);
-                return 1;
-            }
-
-            ShowWindow(hwndChild, SW_SHOWNORMAL);
-            UpdateWindow(hwndChild);
-
-            MSG msg = {};
-            while (GetMessage(&msg, nullptr, 0, 0)) {
-                TranslateMessage(&msg);
-                DispatchMessage(&msg);
-            }
-
-            return 0;
-        }
+    WNDCLASS wc = {};
+    wc.lpfnWndProc = WindowProc;
+    wc.hInstance = hInstance;
+    wc.lpszClassName = CLASS_NAME;
+    RegisterClass(&wc);
+    HWND hwnd = CreateWindowEx(
+            0,                      // Optional window styles
+            CLASS_NAME,             // Window class
+            "WinAPI App",           // Window text
+            WS_OVERLAPPEDWINDOW,    // Window style
+            CW_USEDEFAULT, CW_USEDEFAULT, width + 15, height + 39,   // Size and position
+            nullptr,                   // Parent window
+            nullptr,                   // Menu
+            hInstance,              // Instance handle
+            nullptr                    // Additional application data
+    );
+    if (hwnd == nullptr) {
+        return 0;
     }
-    else {
-        HWND hwndMain = CreateMainWindow(hInstance);
-    }
-
+    ShowWindow(hwnd, nCmdShow);
     MSG msg = {};
     while (GetMessage(&msg, nullptr, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
-
     if (CfgSave == "fstream") {
         SaveToStream(config);
     }
@@ -603,5 +550,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
         SaveToFile(config);
     }
     CloseHandle(hMappingFile);
+    UnmapViewOfFile(pData);
     return 0;
 }
